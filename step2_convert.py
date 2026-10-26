@@ -89,6 +89,8 @@ def main():
     ap.add_argument("--root", required=True, help="图片根目录")
     ap.add_argument("--limit", type=int, default=0, help="只处理前 N 张（0=全部）")
     ap.add_argument("--test", action="store_true", help="自检模式，不转换不删除")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="转换并校验，但保留原 HEIC（先确认转换结果再决定删不删）")
     args = ap.parse_args()
 
     root = os.path.abspath(args.root)
@@ -116,8 +118,10 @@ def main():
         try:
             status, info = convert_one(p)
             if status == "ok":
-                os.remove(p)
-                ok.append({"src": p, "dst": info, "bytes": os.path.getsize(info)})
+                if not args.dry_run:
+                    os.remove(p)
+                ok.append({"src": p, "dst": info, "bytes": os.path.getsize(info),
+                           "src_deleted": not args.dry_run})
             else:
                 fail.append({"src": p, "reason": info})
         except Exception as e:
@@ -128,7 +132,11 @@ def main():
     with open(result, "w", encoding="utf-8") as f:
         json.dump({"ok": ok, "fail": fail, "quality": QUALITY}, f, ensure_ascii=False)
     print("=" * 60, flush=True)
-    print(f"转换成功: {len(ok)} 张（原 HEIC 已删除）")
+    if args.dry_run:
+        print(f"转换成功: {len(ok)} 张（dry-run：原 HEIC 全部保留）")
+        print("确认 JPG 无误后，去掉 --dry-run 再跑一次，才会删除原文件")
+    else:
+        print(f"转换成功: {len(ok)} 张（原 HEIC 已删除）")
     print(f"转换失败: {len(fail)} 张（原文件保留，见 {result}）")
     print(f"耗时 {time.time()-t0:.0f}s")
 

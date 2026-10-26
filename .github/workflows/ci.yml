@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 语法检查（全部步骤脚本）
+        run: |
+          for f in step*.py; do
+            python -m py_compile "$f" || exit 1
+            echo "ok  $f"
+          done
+
+      - name: 冒烟测试（造小照片集跑真实流水线）
+        run: python tests/smoke_test.py
+
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 守护「先报告、后动手」的承诺
+        run: |
+          # 第 3 步只生成报告，不许出现任何删除调用
+          if grep -nE 'os\.remove|os\.unlink|shutil\.rmtree|Path\([^)]*\)\.unlink' step3_reports.py; then
+            echo "::error file=step3_reports.py::第 3 步承诺只出报告，不得包含删除调用"
+            exit 1
+          fi
+          echo "step3_reports.py 不含删除调用 ✓"
+
+      - name: 确认删除类步骤都有 --dry-run
+        run: |
+          missing=0
+          for f in step1_dedup.py step2_convert.py step2b_misnamed_heic.py \
+                   step4_delete_candidates.py step5_same_photo_dedup.py; do
+            if ! grep -q -- '--dry-run' "$f"; then
+              echo "::error file=$f::$f 会删文件，必须提供 --dry-run"
+              missing=1
+            else
+              echo "ok  $f 有 --dry-run"
+            fi
+          done
+          exit $missing

@@ -13,12 +13,16 @@
 
 ## 七步流程
 
+![step1 去重与 step3 生成报告的真实输出](docs/shot-run.png)
+
+*上面是一次真实运行（17 张测试图）：第 1 步按 SHA-256 找出字节级重复，第 3 步算出相似组和无意义候选，两份报告都落在照片根目录。*
+
 前四步处理「脏」：重复、格式、无意义图片。后三步处理「乱」：同图多版本、目录结构、保存图来源。
 
 | 步骤 | 脚本 | 做什么 | 默认行为 |
 |---|---|---|---|
 | 1 | `step1_dedup.py` | SHA-256 找字节级重复，按优先级（`--prefer` 目录 > 非回收站 > 文件名干净 > 最早）保留一份 | 删除（支持 `--dry-run`） |
-| 2 | `step2_convert.py` | HEIC/HEIF → JPG（质量 95，保 EXIF/ICC），逐张校验 | 校验通过才删原 HEIC |
+| 2 | `step2_convert.py` | HEIC/HEIF → JPG（质量 95，保 EXIF/ICC），逐张校验 | 校验通过才删原 HEIC（支持 `--dry-run`） |
 | 2b | `step2b_misnamed_heic.py` | 自动识别「扩展名是 .jpg 但内容是 HEIC」的文件并原地转正 | 原地替换（先写临时文件再 rename） |
 | 3 | `step3_reports.py` | pHash（DCT）感知哈希 + 并查集分组，生成相似图报告与无意义图片候选清单 | **不删除任何文件** |
 | 4 | `step4_delete_candidates.py` | 按你编辑后的候选清单删除，可按类别（A~E）筛选 | 删除（支持 `--dry-run`） |
@@ -30,6 +34,10 @@
 
 ## 快速开始
 
+第 3 步生成的相似图报告长这样（真实产物，组内两两距离 0 表示同一张图的多个副本）：
+
+![相似图报告](docs/shot-report.png)
+
 ```bash
 pip install -r requirements.txt
 
@@ -37,8 +45,9 @@ pip install -r requirements.txt
 
 python step1_dedup.py --root "D:\手机照片" --dry-run        # 预演去重
 python step1_dedup.py --root "D:\手机照片"                  # 执行去重
+python step2_convert.py --root "D:\手机照片" --dry-run      # 转换并校验，但保留原 HEIC
 python step2_convert.py --root "D:\手机照片" --limit 20     # 先转 20 张试试
-python step2_convert.py --root "D:\手机照片"                # 全量转换
+python step2_convert.py --root "D:\手机照片"                # 全量转换（校验通过才删原 HEIC）
 python step2b_misnamed_heic.py --root "D:\手机照片" --dry-run
 python step3_reports.py --root "D:\手机照片"                # 生成两份报告（这一步耗时最长）
 #   → 编辑 生成的「无意义图片候选清单.md」：删掉你不想删的行
