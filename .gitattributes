@@ -1,0 +1,3 @@
+# 统一 LF：CI 在 Linux 上跑，行尾混进 CR 会让 shell 循环里的变量带上 \r
+* text=auto eol=lf
+*.png binary
