@@ -1,5 +1,7 @@
 # photo-cleanup-pipeline · 手机照片整理流水线
 
+![CI](https://github.com/Leslieryin/photo-cleanup-pipeline/actions/workflows/ci.yml/badge.svg)
+
 把「从手机搬出来的几千张杂乱照片」整理干净的七步流水线：**去重 → HEIC 转换 → 相似图报告 → 人工裁决后删除 → 同图版本清理 → 全量重排 → 保存图片细分**。前四步解决「脏」，后三步解决「乱」。每一步都有日志与安全设计，先报告、后动手，绝不静默删你的照片。
 
 > 这个工具来自一次真实整理：两台手机 + 多年导出的照片混在一起，有字节级重复、HEIC 与「假 JPG」、截图表情包缩略图混杂。跑完一遍，混乱的照片目录变成了一份可读的相册。
