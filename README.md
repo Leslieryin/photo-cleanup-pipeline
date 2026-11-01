@@ -47,7 +47,7 @@ pip install -r requirements.txt
 
 python step1_dedup.py --root "D:\手机照片" --dry-run        # 预演去重
 python step1_dedup.py --root "D:\手机照片"                  # 执行去重
-python step2_convert.py --root "D:\手机照片" --dry-run      # 转换并校验，但保留原 HEIC
+python step2_convert.py --root "D:\手机照片" --dry-run      # 校验可转换性，不写 JPG、保留原 HEIC
 python step2_convert.py --root "D:\手机照片" --limit 20     # 先转 20 张试试
 python step2_convert.py --root "D:\手机照片"                # 全量转换（校验通过才删原 HEIC）
 python step2b_misnamed_heic.py --root "D:\手机照片" --dry-run

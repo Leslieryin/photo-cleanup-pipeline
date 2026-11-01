@@ -18,7 +18,7 @@ from io import BytesIO
 import pillow_heif
 from PIL import Image
 
-Image.MAX_IMAGE_PIXELS = None
+Image.MAX_IMAGE_PIXELS = 2 ** 28  # 解压炸弹防护：约 2.7 亿像素上限
 pillow_heif.register_heif_opener()
 
 EXIF_ORIENTATION_TAG = 274
@@ -26,7 +26,7 @@ OUT_DIR_NAME = "_cleanup"
 QUALITY = 95
 
 
-def convert_one(src):
+def convert_one(src, dry_run=False):
     """返回 (状态, 信息)。状态: ok / fail"""
     dst = os.path.splitext(src)[0] + ".jpg"
     n = 1
@@ -55,6 +55,8 @@ def convert_one(src):
     with Image.open(buf) as chk:
         if chk.size != src_size:
             return "fail", f"分辨率不一致 {chk.size} != {src_size}"
+    if dry_run:
+        return "ok", dst  # dry-run 不落盘：真跑时 dst 仍为空名，不会产生 _2.jpg 副本
     with open(dst, "wb") as f:
         f.write(buf.getvalue())
     return "ok", dst
@@ -116,11 +118,11 @@ def main():
     t0 = time.time()
     for i, p in enumerate(heics):
         try:
-            status, info = convert_one(p)
+            status, info = convert_one(p, dry_run=args.dry_run)
             if status == "ok":
                 if not args.dry_run:
                     os.remove(p)
-                ok.append({"src": p, "dst": info, "bytes": os.path.getsize(info),
+                ok.append({"src": p, "dst": info, "bytes": 0 if args.dry_run else os.path.getsize(info),
                            "src_deleted": not args.dry_run})
             else:
                 fail.append({"src": p, "reason": info})

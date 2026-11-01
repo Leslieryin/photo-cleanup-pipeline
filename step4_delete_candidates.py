@@ -33,7 +33,10 @@ def main():
     with open(report, encoding="utf-8") as f:
         lines = f.readlines()
 
-    targets, section = [], None
+    # 安全守卫：清单里的路径必须落在 --root 之内。
+    # os.path.join 遇到绝对路径或 ../ 时会越过 root，这里用 realpath 包含性校验拦截。
+    real_root = os.path.realpath(root) + os.sep
+    targets, escaped, section = [], [], None
     for ln in lines:
         m = re.match(r"^## ([A-E])\.", ln.strip())
         if m:
@@ -41,13 +44,23 @@ def main():
             continue
         if section and section in args.sections.upper() and ln.strip().startswith("| `"):
             rel = ln.split("`")[1]
-            targets.append((section, os.path.join(root, rel)))
+            p = os.path.join(root, rel)
+            if not os.path.realpath(p).startswith(real_root):
+                escaped.append((section, p, "越界：不在 --root 内，跳过"))
+                continue
+            targets.append((section, p))
+
+    if escaped:
+        print(f"[安全] 有 {len(escaped)} 条清单路径越出 --root，已跳过（详见日志）", flush=True)
 
     print(f"从报告解析到 {len(targets)} 个待删除文件", flush=True)
+    os.makedirs(os.path.join(root, OUT_DIR_NAME), exist_ok=True)
     deleted, freed, failed = 0, 0, []
     with open(log, "w", newline="", encoding="utf-8-sig") as lf:
         w = csv.writer(lf)
         w.writerow(["类别", "文件", "大小(字节)", "结果"])
+        for sec, p, why in escaped:
+            w.writerow([sec, p, "", why])
         for sec, p in targets:
             if not os.path.exists(p):
                 w.writerow([sec, p, "", "不存在，跳过"])

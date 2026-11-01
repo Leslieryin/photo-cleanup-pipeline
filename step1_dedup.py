@@ -121,9 +121,12 @@ def main():
     groups_with_dup = {e[0] for g in dup_groups for e in g}
     survivors = [e for e in files if e[0] not in groups_with_dup] + \
                 [(p, os.path.getsize(p), os.path.getmtime(p)) for p in kept_rows if os.path.exists(p)]
-    with open(manifest, "w", encoding="utf-8") as f:
-        json.dump([{"path": p, "size": s, "mtime": m} for p, s, m in survivors],
-                  f, ensure_ascii=False)
+    if args.dry_run:
+        print("dry-run：未生成保留清单（step2_保留图片清单.json）——真跑一遍 step1 后再进入 step2")
+    else:
+        with open(manifest, "w", encoding="utf-8") as f:
+            json.dump([{"path": p, "size": s, "mtime": m} for p, s, m in survivors],
+                      f, ensure_ascii=False)
 
     print("=" * 60, flush=True)
     print(f"扫描图片总数 : {len(files)}")

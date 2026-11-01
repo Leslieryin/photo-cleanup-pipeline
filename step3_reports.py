@@ -19,7 +19,7 @@ import numpy as np
 import pillow_heif
 from PIL import Image
 
-Image.MAX_IMAGE_PIXELS = None
+Image.MAX_IMAGE_PIXELS = 2 ** 28  # 解压炸弹防护
 pillow_heif.register_heif_opener()
 
 EXTS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".gif", ".bmp"}
@@ -100,6 +100,13 @@ def main():
         except Exception as e:
             print(f"[警告] 进度文件读取失败，从头开始：{e}", flush=True)
             done = {}
+
+    # 续算清理：磁盘上已不存在的文件，其指纹不再进入报告口径（与 broken 的存在性过滤对称）
+    scan_paths = {e["path"] for e in files}
+    gone = [p for p in done if p not in scan_paths]
+    if gone:
+        print(f"续算清理：{len(gone)} 条指纹对应的文件已不存在，剔除", flush=True)
+        done = {p: r for p, r in done.items() if p in scan_paths}
 
     todo = [e for e in files if e["path"] not in done]
     print(f"本次需计算指纹：{len(todo)} 张", flush=True)

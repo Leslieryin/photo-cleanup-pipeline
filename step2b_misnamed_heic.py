@@ -16,7 +16,7 @@ from io import BytesIO
 import pillow_heif
 from PIL import Image
 
-Image.MAX_IMAGE_PIXELS = None
+Image.MAX_IMAGE_PIXELS = 2 ** 28  # 解压炸弹防护
 pillow_heif.register_heif_opener()
 
 OUT_DIR_NAME = "_cleanup"

@@ -147,7 +147,19 @@ try:
             ImageDraw.Draw(im).ellipse([60, 40, 240, 200], fill=(220, 140, 60))
             im.save(root / f"H{i}.heic", format="HEIF", quality=90)
 
+        run("step1_dedup.py", "--root", str(root))
+        # step1 --dry-run 不再生成保留清单（防下游误用与磁盘状态不符）
         run("step1_dedup.py", "--root", str(root), "--dry-run")
+        manifest = root / "_cleanup" / "step2_保留图片清单.json"
+        # 上面的真跑会生成 manifest；再验证单独 dry-run 不会覆盖/生成（比对 mtime 前后不变）
+        m1 = manifest.stat().st_mtime
+        import time as _t
+        _t.sleep(0.01)
+        run("step1_dedup.py", "--root", str(root), "--dry-run")
+        ok("step1 dry-run 不写保留清单（真跑的 manifest 保持原样）",
+           manifest.exists() and manifest.stat().st_mtime == m1)
+        # 真跑已删重复份，剩 3 张 HEIC；先真跑一遍 step1 生成清单后测 step2 --dry-run
+        run("step1_dedup.py", "--root", str(root))  # 重新真跑补回 manifest（重复已删，清单=现存 3 张）
         heic_before = sorted(p.name for p in root.glob("*.heic"))
         r = run("step2_convert.py", "--root", str(root), "--dry-run")
         heic_after = sorted(p.name for p in root.glob("*.heic"))
@@ -156,8 +168,47 @@ try:
         ok("退出码为 0", r.returncode == 0, f"rc={r.returncode}")
         ok("dry-run 保留了全部原 HEIC", heic_before == heic_after,
            f"{len(heic_before)} → {len(heic_after)}")
-        ok("JPG 已正常生成", len(jpgs) == 3, f"{jpgs}")
+        ok("dry-run 不落盘 JPG（真跑时才写，避免 _2.jpg 副本）", len(jpgs) == 0, f"{jpgs}")
         ok("输出里提示了原文件保留", "全部保留" in r.stdout)
+
+        # 真跑一遍：确认两段式流程不再产生重复 JPG
+        r2 = run("step2_convert.py", "--root", str(root))
+        jpgs2 = sorted(p.name for p in root.rglob("*.jpg"))
+        heics2 = sorted(p.name for p in root.glob("*.heic"))
+        ok("真跑后 HEIC 已删、JPG 无重复副本", len(heics2) == 0 and len(jpgs2) == 3 and
+           not any("_2" in j for j in jpgs2), f"{jpgs2}")
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+
+print("\n[step4 --dry-run：越界路径守卫 + 缺目录自建]")
+try:
+    import tempfile as _tf
+    tmp = Path(_tf.mkdtemp(prefix="pc-test-step4-"))
+    root = tmp / "photos"
+    root.mkdir()
+    inside = root / "keep-in-root.jpg"
+    inside.write_bytes(b"inside")
+    outside_dir = tmp / "outside-of-root"
+    outside_dir.mkdir(exist_ok=True)
+    outside = outside_dir / "victim-outside.jpg"
+    outside.write_bytes(b"outside")
+    report = root / "无意义图片候选清单.md"
+    rel_outside = f"../{outside_dir.name}/{outside.name}"           # 相对路径越界
+    abs_outside = str(outside.resolve())                            # 绝对路径越界
+    report.write_text(
+        "## A. 纯色块/截图类\n"
+        f"| `keep-in-root.jpg` | 测试 |\n"
+        f"| `{rel_outside}` | 相对路径越界测试 |\n"
+        f"| `{abs_outside}` | 绝对路径越界测试 |\n",
+        encoding="utf-8")
+    r = run("step4_delete_candidates.py", "--root", str(root))
+    ok("退出码为 0", r.returncode == 0, f"rc={r.returncode}")
+    ok("root 内文件已删除", not inside.exists())
+    ok("root 外文件未被触碰", outside.exists())
+    log = (root / "_cleanup" / "step4_删除日志.csv").read_text(encoding="utf-8-sig")
+    ok("日志记录了两条越界跳过", log.count("越界") == 2, f"{log.count('越界')} 处")
+except AssertionError as e:
+    ok("step4 越界守卫测试前置失败", False, str(e))
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
